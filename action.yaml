@@ -1,0 +1,43 @@
+name: 'iOS signing certificate and provisioning profile setup'
+description: 'Sets up the iOS signing certificate and the provisioning profile for manual code signing.'
+
+inputs:
+  ios_signing_certificate_p12_base64:
+    description: The base64 encoded p12 signing certificate file
+    required: true
+  ios_signing_certificate_p12_password:
+    description: The password for the signing certificate
+    required: true
+  ios_provisioning_profile_base64:
+    description: The base64 encoded provisioning profile
+    required: true
+
+outputs:
+  provisioning_profile_path:
+    description: "Path to the provisioning profile"
+    value: ${{ steps.install-provisioning-profile.outputs.provisioning_profile_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install the signing certificate into the keychain
+      uses: apple-actions/import-codesign-certs@v1
+      with:
+        p12-file-base64: ${{ inputs.ios_signing_certificate_p12_base64 }}
+        p12-password: ${{ inputs.ios_signing_certificate_p12_password }}
+
+    - name: Install the provisioning profile
+      id: install-provisioning-profile
+      env:
+        PROVISION_PROFILE_BASE64: ${{ inputs.ios_provisioning_profile_base64 }}
+      run: |
+        # Base64-decode the provisioning profile and write it to a file.
+        PROVISIONING_PROFILE_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+        echo -n "$PROVISION_PROFILE_BASE64" | base64 --decode -o $PROVISIONING_PROFILE_PATH
+
+        # Copy the provisioning profile file to the expected location.
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp $PROVISIONING_PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+        
+        echo "provisioning_profile_path=$(echo $PROVISIONING_PROFILE_PATH)" >> $GITHUB_OUTPUT
+      shell: bash
